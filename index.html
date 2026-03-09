@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Gateway 2.0 | Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0F172A;
+            --card: #1E293B;
+            --primary: #6366F1;
+            --accent: #10B981;
+            --error: #EF4444;
+            --text: #F8FAFC;
+            --text-muted: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #6366F1, #A855F7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background-color: var(--card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: var(--text);
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .log-list,
+        .queue-list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-item,
+        .queue-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.875rem;
+        }
+
+        .log-item .time {
+            color: var(--text-muted);
+            margin-right: 0.5rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .type-success {
+            color: var(--accent);
+        }
+
+        .type-error {
+            color: var(--error);
+        }
+
+        .type-info {
+            color: var(--primary);
+        }
+
+        .empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 2rem;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>SMS Gateway 2.0 Dashboard</h1>
+            <p style="color: var(--text-muted)">Control Center & Monitoring</p>
+        </header>
+
+        <div class="grid">
+            <!-- Left: Message Form -->
+            <div class="card">
+                <h2>新建短信任务</h2>
+                <div class="form-group">
+                    <label>手机号码 (Phone)</label>
+                    <input type="text" id="phone" placeholder="+639171234567">
+                </div>
+                <div class="form-group">
+                    <label>短信内容 (Message)</label>
+                    <textarea id="message" rows="4" placeholder="Enter your text message..."></textarea>
+                </div>
+                <button onclick="sendJob()">ADD TO QUEUE</button>
+                <div id="statusMsg" style="margin-top: 1rem; font-size: 0.875rem; text-align: center;"></div>
+            </div>
+
+            <!-- Right: Activity Logs -->
+            <div class="card">
+                <h2>活动日志 (Logs)</h2>
+                <ul id="logList" class="log-list">
+                    <li class="empty">Loading logs...</li>
+                </ul>
+            </div>
+
+            <!-- Bottom Left: Queue -->
+            <div class="card">
+                <h2>等待中队列 (Queue)</h2>
+                <ul id="queueList" class="queue-list">
+                    <li class="empty">Queue is empty</li>
+                </ul>
+            </div>
+
+            <!-- Bottom Right: API Info -->
+            <div class="card">
+                <h2>Connection Info</h2>
+                <p style="font-size: 0.875rem; color: var(--text-muted)">
+                    Your backend is running at:<br>
+                    <code id="apiUrl"
+                        style="color: var(--primary); font-weight: bold; cursor: pointer; text-decoration: underline;"
+                        onclick="changeApiUrl()">Determining...</code>
+                </p>
+                <p style="margin-top: 1rem; font-size: 0.875rem;">
+                    Status: <span id="onlineStatus" style="color: var(--error)">● Offline</span>
+                </p>
+                <div id="diagMsg" style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-muted)"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let API_BASE = 'http://' + (window.location.hostname || 'localhost') + ':5000';
+        document.getElementById('apiUrl').innerText = API_BASE;
+
+        function changeApiUrl() {
+            const newUrl = prompt("Enter Backend API URL:", API_BASE);
+            if (newUrl) {
+                API_BASE = newUrl.replace(/\/$/, "");
+                document.getElementById('apiUrl').innerText = API_BASE;
+                checkStatus();
+                fetchLogs();
+                fetchQueue();
+            }
+        }
+
+        async function checkStatus() {
+            const statusEl = document.getElementById('onlineStatus');
+            const diagEl = document.getElementById('diagMsg');
+            try {
+                const res = await fetch(`${API_BASE}/`, { mode: 'cors' });
+                if (res.ok) {
+                    statusEl.innerText = '● Online';
+                    statusEl.style.color = 'var(--accent)';
+                    diagEl.innerText = 'Backend connection stable';
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                statusEl.innerText = '● Offline';
+                statusEl.style.color = 'var(--error)';
+                diagEl.innerText = `Cannot reach ${API_BASE}. Ensure mock_backend.py is running.`;
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/logs`, { mode: 'cors' });
+                if (!res.ok) return;
+                const logs = await res.json();
+                const list = document.getElementById('logList');
+                if (logs.length === 0) {
+                    list.innerHTML = '<li class="empty">No logs yet</li>';
+                    return;
+                }
+                list.innerHTML = logs.map(log => `
+                    <li class="log-item">
+                        <span class="time">${log.time}</span>
+                        <span class="type-${log.type}">${log.message}</span>
+                    </li>
+                `).join('');
+            } catch (e) { }
+        }
+
+        async function fetchQueue() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/queue`, { mode: 'cors' });
+                if (!res.ok) return;
+                const queue = await res.json();
+                const list = document.getElementById('queueList');
+                if (queue.length === 0) {
+                    list.innerHTML = '<li class="empty">Queue is empty</li>';
+                    return;
+                }
+                list.innerHTML = queue.map(job => `
+                    <li class="queue-item">
+                        <strong>${job.phone}</strong>: ${job.message}
+                    </li>
+                `).join('');
+            } catch (e) { }
+        }
+
+        async function sendJob() {
+            const phone = document.getElementById('phone').value;
+            const message = document.getElementById('message').value;
+            const statusMsg = document.getElementById('statusMsg');
+
+            if (!phone || !message) {
+                statusMsg.style.color = 'var(--error)';
+                statusMsg.innerText = 'Please fill all fields';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/admin/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'cors',
+                    body: JSON.stringify({ phone, message })
+                });
+
+                if (res.ok) {
+                    statusMsg.style.color = 'var(--accent)';
+                    statusMsg.innerText = 'SMS Job queued successfully!';
+                    document.getElementById('phone').value = '';
+                    document.getElementById('message').value = '';
+                    fetchQueue();
+                    fetchLogs();
+                }
+            } catch (e) {
+                statusMsg.style.color = 'var(--error)';
+                statusMsg.innerText = 'Failed to add job. Check backend.';
+            }
+        }
+
+        // Auto refresh
+        setInterval(() => {
+            checkStatus();
+            fetchLogs();
+            fetchQueue();
+        }, 3000);
+
+        // Initial fetch
+        checkStatus();
+        fetchLogs();
+        fetchQueue();
+    </script>
+</body>
+
+</html>
