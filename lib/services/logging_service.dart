@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 
 class LogEntry {
   final DateTime timestamp;
@@ -64,6 +65,14 @@ class LoggingService {
     final prefs = await SharedPreferences.getInstance();
     final List<String> logStrings = _logs.map((e) => '${e.timestamp.toIso8601String()}|${e.message}|${e.isError}').toList();
     await prefs.setStringList(keyLogs, logStrings);
+
+    // Broadcast event if in background service
+    try {
+      final service = FlutterBackgroundService();
+      service.invoke('onLogAdded', entry.toJson());
+    } catch (e) {
+      // Not in a context where service is available or initialized
+    }
   }
 
   static Future<void> clearLogs() async {

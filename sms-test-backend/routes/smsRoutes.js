@@ -20,6 +20,7 @@ router.post('/send-sms', (req, res) => {
 
 // 2. Gateway Poll Jobs
 router.get('/gateway/jobs', (req, res) => {
+    // console.log(`[GATEWAY] Poll request received`); // Log every poll if needed
     const sql = `SELECT id, phone, message FROM sms_jobs WHERE status = 'pending'`;
     db.all(sql, [], (err, rows) => {
         if (err) {
@@ -52,8 +53,9 @@ router.post('/gateway/job-complete', (req, res) => {
 // 4. Mark SMS Failed
 router.post('/gateway/job-failed', (req, res) => {
     const { job_id, error } = req.body;
-    const sql = `UPDATE sms_jobs SET status = 'failed' WHERE id = ?`;
-    db.run(sql, [job_id], (err) => {
+    console.log(`[GATEWAY] Job ${job_id} FAILED: ${error}`);
+    const sql = `UPDATE sms_jobs SET status = 'failed', error_message = ? WHERE id = ?`;
+    db.run(sql, [error, job_id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, logged_error: error });
     });
@@ -61,7 +63,7 @@ router.post('/gateway/job-failed', (req, res) => {
 
 // Admin: Get all jobs for the table
 router.get('/admin/jobs', (req, res) => {
-    db.all(`SELECT * FROM sms_jobs ORDER BY created_at DESC LIMIT 50`, [], (err, rows) => {
+    db.all(`SELECT id, phone, message, status, error_message, created_at FROM sms_jobs ORDER BY created_at DESC LIMIT 50`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });

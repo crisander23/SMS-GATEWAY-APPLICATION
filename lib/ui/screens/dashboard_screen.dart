@@ -17,24 +17,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _lastSync = 'Never';
   int _smsSentToday = 0;
   Timer? _refreshTimer;
+  bool _isFetching = false;
+  StreamSubscription? _statSubscription;
 
   @override
   void initState() {
     super.initState();
     _checkServiceStatus();
     _startRefreshTimer();
+    _setupStatsListener();
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _statSubscription?.cancel();
     super.dispose();
   }
 
+  void _setupStatsListener() {
+    _statSubscription = FlutterBackgroundService().on('onStatsUpdated').listen((event) {
+      if (event != null && mounted) {
+        setState(() {
+          if (event['sentToday'] != null) _smsSentToday = event['sentToday'];
+          if (event['isFetching'] != null) _isFetching = event['isFetching'];
+          if (event['lastSync'] != null) {
+             final dt = DateTime.parse(event['lastSync']);
+             _lastSync = "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}";
+          }
+        });
+      }
+    });
+  }
+
   void _startRefreshTimer() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _checkServiceStatus();
-      _updateStats();
     });
   }
 
@@ -48,16 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _updateStats() {
-    final logs = LoggingService.logs;
-    if (logs.isNotEmpty) {
-      final lastLog = logs.first;
-      if (mounted) {
-        setState(() {
-          _lastSync = lastLog.formattedTime;
-          _smsSentToday = logs.where((l) => l.message.contains('SMS sent') && l.timestamp.day == DateTime.now().day).length;
-        });
-      }
-    }
+    // Legacy method - logic moved to _setupStatsListener
   }
 
   Future<void> _toggleGateway() async {
@@ -152,6 +161,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+            if (_isFetching)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentColor)),
+                    SizedBox(width: 8),
+                    Text('Fetching jobs...', style: TextStyle(color: AppTheme.accentColor, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
             Text(
               _isRunning ? 'Polling for SMS jobs...' : 'Press Start to begin polling',
               style: const TextStyle(color: Colors.white70),

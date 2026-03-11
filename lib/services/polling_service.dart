@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter/material.dart';
@@ -55,6 +56,7 @@ class PollingService {
     });
 
     final storage = await StorageService.init();
+    DartPluginRegistrant.ensureInitialized();
     await LoggingService.loadLogs();
     
     await LoggingService.addLog('Gateway started');
@@ -89,11 +91,16 @@ class PollingService {
         gatewayId: gatewayId,
       );
 
+      // Initial broadcast
+      await _broadcastStats(service);
+
       final jobs = await apiClient.fetchJobs();
       int pollInterval = storage.pollInterval; // default 10
 
       if (jobs.isNotEmpty) {
         pollInterval = 2; // Active mode
+        service.invoke('onStatsUpdated', {'isFetching': true});
+        
         if (service is AndroidServiceInstance) {
           service.setForegroundNotificationInfo(
             title: "SMS Gateway Active",
@@ -104,17 +111,26 @@ class PollingService {
         for (var job in jobs) {
           await LoggingService.addLog('Processing job ${job.id} for ${job.phone}');
           
-          final success = await SmsService.sendSms(job.phone, job.message);
-          
-          if (success) {
-            await apiClient.reportComplete(job.id);
-          } else {
-            await apiClient.reportFailure(job.id, 'sms_failed');
+          try {
+            final result = await SmsService.sendSms(job.phone, job.message);
+            if (result) {
+              await apiClient.reportComplete(job.id);
+              await _incrementSentCount();
+              await _broadcastStats(service);
+            } else {
+              // The error is already logged inside SmsService
+              await apiClient.reportFailure(job.id, 'Native SMS failure');
+            }
+          } catch (e) {
+            await LoggingService.addLog('Job ${job.id} failed: $e', isError: true);
+            await apiClient.reportFailure(job.id, e.toString());
           }
 
           // Rate limiting
           await Future.delayed(Duration(seconds: rateLimitDelay));
         }
+        
+        service.invoke('onStatsUpdated', {'isFetching': false});
       } else {
         pollInterval = 10; // Idle mode
         if (service is AndroidServiceInstance) {
@@ -125,7 +141,26 @@ class PollingService {
         }
       }
 
+      await _broadcastStats(service);
       await Future.delayed(Duration(seconds: pollInterval));
     }
   }
+}
+
+Future<void> _incrementSentCount() async {
+  final prefs = await SharedPreferences.getInstance();
+  final String today = DateTime.now().toIso8601String().split('T')[0];
+  final int current = prefs.getInt('sent_$today') ?? 0;
+  await prefs.setInt('sent_$today', current + 1);
+}
+
+Future<void> _broadcastStats(ServiceInstance service) async {
+  final prefs = await SharedPreferences.getInstance();
+  final String today = DateTime.now().toIso8601String().split('T')[0];
+  final int sentToday = prefs.getInt('sent_$today') ?? 0;
+  
+  service.invoke('onStatsUpdated', {
+    'sentToday': sentToday,
+    'lastSync': DateTime.now().toIso8601String(),
+  });
 }

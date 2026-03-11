@@ -41,6 +41,8 @@ dependencies:
   logger: ^2.0.2
   permission_handler: ^11.0.1
   intl: ^0.19.0
+  sms_sender:
+    path: ./packages/sms_sender
 
 dev_dependencies:
   flutter_test:

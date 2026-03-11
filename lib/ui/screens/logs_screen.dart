@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../../services/logging_service.dart';
 import '../../core/app_theme.dart';
 import 'dart:async';
@@ -11,18 +12,28 @@ class LogsScreen extends StatefulWidget {
 }
 
 class _LogsScreenState extends State<LogsScreen> {
+  StreamSubscription? _logSubscription;
   Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _logSubscription = FlutterBackgroundService().on('onLogAdded').listen((event) {
+      if (event != null) {
+        LoggingService.loadLogs(); // Reload to get the new entry
+        if (mounted) setState(() {});
+      }
+    });
+
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      await LoggingService.loadLogs();
       if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
+    _logSubscription?.cancel();
     _refreshTimer?.cancel();
     super.dispose();
   }
