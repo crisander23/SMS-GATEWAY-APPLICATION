@@ -4,6 +4,8 @@ import '../../services/logging_service.dart';
 import '../../services/storage_service.dart';
 import '../../core/app_theme.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -90,6 +92,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _checkServiceStatus();
   }
 
+  Future<void> _testConnection() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Testing connection...')),
+    );
+
+    try {
+      final storage = await StorageService.init();
+      if (storage.apiUrl.isEmpty) {
+        throw Exception('API URL is not configured');
+      }
+
+      final response = await http.get(Uri.parse(storage.apiUrl)).timeout(const Duration(seconds: 5));
+      
+      if (mounted) {
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Success: ${response.body}'),
+              backgroundColor: AppTheme.accentColor,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: HTTP ${response.statusCode}'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection failed: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,12 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 16),
             OutlinedButton(
-               onPressed: () {
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(content: Text('Connection test initiated...')),
-                 );
-                 // In a real app, logic to test API reachability would go here
-               },
+               onPressed: _testConnection,
                style: OutlinedButton.styleFrom(
                  foregroundColor: Colors.white,
                  side: const BorderSide(color: Colors.white24),

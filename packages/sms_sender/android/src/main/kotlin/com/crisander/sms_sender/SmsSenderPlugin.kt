@@ -34,16 +34,60 @@ class SmsSenderPlugin: FlutterPlugin, MethodCallHandler {
     }
 
     private fun sendSMS(phone: String, message: String, result: Result) {
+        val SENT = "SMS_SENT_${System.currentTimeMillis()}"
+        val sentPI = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            android.app.PendingIntent.getBroadcast(context, 0, android.content.Intent(SENT), android.app.PendingIntent.FLAG_IMMUTABLE)
+        } else {
+            android.app.PendingIntent.getBroadcast(context, 0, android.content.Intent(SENT), 0)
+        }
+
+        val smsStatusReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(arg0: android.content.Context?, arg1: android.content.Intent?) {
+                context?.unregisterReceiver(this)
+                when (resultCode) {
+                    android.app.Activity.RESULT_OK -> {
+                        result.success("SMS Sent")
+                    }
+                    android.telephony.SmsManager.RESULT_ERROR_GENERIC_FAILURE -> {
+                        result.error("FAILED", "Carrier Error: Generic Failure (Check Balance/SIM)", null)
+                    }
+                    android.telephony.SmsManager.RESULT_ERROR_NO_SERVICE -> {
+                        result.error("FAILED", "Carrier Error: No Service", null)
+                    }
+                    android.telephony.SmsManager.RESULT_ERROR_RADIO_OFF -> {
+                        result.error("FAILED", "Carrier Error: Radio Off", null)
+                    }
+                    else -> {
+                        result.error("FAILED", "Carrier Error: Code $resultCode", null)
+                    }
+                }
+            }
+        }
+        
+        context?.registerReceiver(smsStatusReceiver, android.content.IntentFilter(SENT))
+
         try {
             val smsManager: SmsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 context?.getSystemService(SmsManager::class.java)!!
             } else {
                 SmsManager.getDefault()
             }
-            smsManager.sendTextMessage(phone, null, message, null, null)
-            result.success("SMS Sent")
+
+            if (message.length > 160) {
+                val parts = smsManager.divideMessage(message)
+                val sentIntents = java.util.ArrayList<android.app.PendingIntent>()
+                for (i in parts.indices) {
+                    sentIntents.add(sentPI)
+                }
+                smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null)
+            } else {
+                smsManager.sendTextMessage(phone, null, message, sentPI, null)
+            }
         } catch (e: Exception) {
-            result.error("FAILED", "Failed to send SMS: ${e.message}", null)
+            try {
+                context?.unregisterReceiver(smsStatusReceiver)
+            } catch (ignore: Exception) {}
+            result.error("FAILED", "Plugin Error: ${e.message}", null)
         }
     }
 

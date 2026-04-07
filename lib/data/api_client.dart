@@ -17,7 +17,7 @@ class ApiClient {
   Future<List<SmsJob>> fetchJobs() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/gateway/jobs'),
+        Uri.parse('$baseUrl/api/v1/gateway/jobs'),
         headers: {
           'Authorization': 'Bearer $apiKey',
           'X-Gateway-ID': gatewayId,
@@ -25,8 +25,10 @@ class ApiClient {
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        final List<dynamic> jobsJson = data['jobs'] ?? [];
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        // Expecting { status: "success", data: { jobs: [] } }
+        final Map<String, dynamic> dataObj = responseData['data'] ?? {};
+        final List<dynamic> jobsJson = dataObj['jobs'] ?? [];
         return jobsJson.map((json) => SmsJob.fromJson(json)).toList();
       } else {
         await LoggingService.addLog('Failed to fetch jobs: ${response.statusCode}', isError: true);
@@ -41,7 +43,7 @@ class ApiClient {
   Future<void> reportComplete(int jobId) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/gateway/job-complete'),
+        Uri.parse('$baseUrl/api/v1/gateway/job-complete'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $apiKey',
@@ -64,7 +66,7 @@ class ApiClient {
   Future<void> reportFailure(int jobId, String error) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/gateway/job-failed'),
+        Uri.parse('$baseUrl/api/v1/gateway/job-failed'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $apiKey',

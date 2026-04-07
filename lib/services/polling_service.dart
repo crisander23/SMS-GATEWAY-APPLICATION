@@ -112,22 +112,23 @@ class PollingService {
           await LoggingService.addLog('Processing job ${job.id} for ${job.phone}');
           
           try {
-            final result = await SmsService.sendSms(job.phone, job.message);
-            if (result) {
+            final error = await SmsService.sendSms(job.phone, job.message);
+            if (error == null) {
               await apiClient.reportComplete(job.id);
               await _incrementSentCount();
               await _broadcastStats(service);
             } else {
-              // The error is already logged inside SmsService
-              await apiClient.reportFailure(job.id, 'Native SMS failure');
+              // Detailed failure reported to backend
+              await apiClient.reportFailure(job.id, error);
             }
           } catch (e) {
-            await LoggingService.addLog('Job ${job.id} failed: $e', isError: true);
+            await LoggingService.addLog('Job ${job.id} threw exception: $e', isError: true);
             await apiClient.reportFailure(job.id, e.toString());
           }
 
-          // Rate limiting
-          await Future.delayed(Duration(seconds: rateLimitDelay));
+          // Rate limiting (Enforced 6-8s minimum to prevent carrier bans)
+          int effectiveDelay = rateLimitDelay < 7 ? 7 : rateLimitDelay;
+          await Future.delayed(Duration(seconds: effectiveDelay));
         }
         
         service.invoke('onStatsUpdated', {'isFetching': false});
