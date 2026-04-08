@@ -19,12 +19,12 @@ const pool = mysql.createPool({
 });
 
 // Authentication Middlewares
-const osTicketAuth = (req, res, next) => {
+const clientAuth = (req, res, next) => {
     const apiKey = req.headers['x-api-key'] || req.query.apikey;
-    if (apiKey === process.env.OSTICKET_API_KEY) {
+    if (apiKey === process.env.CLIENT_API_KEY) {
         return next();
     }
-    return res.status(401).json({ status: 'error', message: 'Unauthorized osTicket API Key' });
+    return res.status(401).json({ status: 'error', message: 'Unauthorized Client API Key' });
 };
 
 const gatewayAuth = async (req, res, next) => {
@@ -63,9 +63,9 @@ const gatewayAuth = async (req, res, next) => {
 app.get('/', (req, res) => res.json({ status: 'online', message: 'SMS Gateway Production API' }));
 
 // ==========================================
-// 1. PUBLIC API FOR OSTICKET
+// 1. PUBLIC API FOR EXTERNAL CLIENTS
 // ==========================================
-app.post('/api/v1/send-sms', osTicketAuth, async (req, res) => {
+app.post('/api/v1/send-sms', clientAuth, async (req, res) => {
     const { phone, message } = req.body;
     
     if (!phone || !message) {
@@ -201,7 +201,7 @@ app.post('/api/v1/gateway/job-failed', gatewayAuth, async (req, res) => {
 // ==========================================
 
 // A. Get Stats
-app.get('/api/v1/admin/stats', osTicketAuth, async (req, res) => {
+app.get('/api/v1/admin/stats', clientAuth, async (req, res) => {
     try {
         const [[stats]] = await pool.query(`
             SELECT 
@@ -229,7 +229,7 @@ app.get('/api/v1/admin/stats', osTicketAuth, async (req, res) => {
 });
 
 // B. Get Recent Jobs
-app.get('/api/v1/admin/jobs', osTicketAuth, async (req, res) => {
+app.get('/api/v1/admin/jobs', clientAuth, async (req, res) => {
     try {
         const [jobs] = await pool.query(
             "SELECT id, phone, message, status, gateway_id, error_message, updated_at FROM sms_jobs ORDER BY id DESC LIMIT 50"
@@ -241,7 +241,7 @@ app.get('/api/v1/admin/jobs', osTicketAuth, async (req, res) => {
 });
 
 // C. Get All Gateways
-app.get('/api/v1/admin/gateways', osTicketAuth, async (req, res) => {
+app.get('/api/v1/admin/gateways', clientAuth, async (req, res) => {
     try {
         const [gateways] = await pool.query(
             "SELECT gateway_id, name, status, last_seen, updated_at FROM gateways ORDER BY last_seen DESC"
